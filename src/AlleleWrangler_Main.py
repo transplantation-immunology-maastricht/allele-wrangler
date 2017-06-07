@@ -19,6 +19,7 @@ from AlleleWrangler import AlleleWrangler
 
 SoftwareVersion = "Allele-Wrangler Version 1.0"
 
+import os
 
 import sys
 import getopt
@@ -35,13 +36,13 @@ def usage():
 def readArgs():
     # Default to None.  So I can easily check if they were not passed in.
    
-    global inputReadFileName
+    global readInput
     global outputResultDirectory
     global numberIterations
     global consensusFileName
     global numberThreads
     
-    inputReadFileName        = None
+    readInput        = None
     outputResultDirectory    = None
     consensusFileName        = None
     numberIterations         = 1
@@ -74,7 +75,7 @@ def readArgs():
             elif opt in ("-o", "--outputdir"):
                 outputResultDirectory = arg
             elif opt in ("-r", "--reads"):
-                inputReadFileName = arg
+                readInput = arg
             elif opt in ("-c", "--consensus"):
                 consensusFileName = arg
             elif opt in ("-c", "--threads"):
@@ -91,13 +92,17 @@ def readArgs():
         return False
 
     # Consensus,threads is optional, the rest are necessary.
-    #print('Reads:' + inputReadFileName)
-    #print('Number Iterations:' + str(numberIterations))
-    #print('Output Directory:' + outputResultDirectory)
-    #print('Consensus Filename:' + str(consensusFileName))
-    #print('Threads:' + str(numberThreads))
+    # Sanity Checks
+    if (int(numberIterations) < 1):
+        print('You must specify an Iteration count >= 1.')
     
-    #TODO: Iterations should be > 0
+    if (os.path.isfile(readInput)):
+        print ('Read input is a file that exists.')
+    elif (os.path.isdir(readInput)):
+        print ('Read input is a directory that exists.')
+    else :
+        print ('I don\'t understand the read input specified, it is not a file or directory:' + readInput)
+        return False
 
     return True
 
@@ -107,7 +112,7 @@ if __name__=='__main__':
         if(readArgs()):
             print('Commandline arguments look fine.\nThe hour is at hand. Let us wrangle the Alleles.')
             
-            myAlleleWrangler = AlleleWrangler(inputReadFileName, outputResultDirectory, consensusFileName, numberIterations, numberThreads)
+            myAlleleWrangler = AlleleWrangler(readInput, outputResultDirectory, consensusFileName, numberIterations, numberThreads)
             myAlleleWrangler.wrangle()
             
             print ('I am done wrangling alleles for now, have a nice day.')    

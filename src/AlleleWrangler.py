@@ -12,6 +12,7 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with Allele-Wrangler. If not, see <http://www.gnu.org/licenses/>.
+from matplotlib.sphinxext.tests.test_tinypages import HERE
 
 # Version 1.0 
 
@@ -21,11 +22,12 @@ import sys
 import pysam
 import os
 from os.path import split, join, isdir
-from os import mkdir
+from os import mkdir, makedirs
 from Bio import SeqIO
 from Bio.Seq import Seq
 from Bio.SeqRecord import SeqRecord
 from Bio.Alphabet import IUPAC
+from shutil import copyfile
 #from shutil import copy
 
 class AlleleWrangler():   
@@ -33,19 +35,33 @@ class AlleleWrangler():
     def __init__(self, readsFile, outputDir, referenceFile, numIters, numThreads):
          
         print ('Setting up the Allele Wrangler...')
-        self.readFileName          = readsFile
+        self.readInput          = readsFile
+        self.inputDirectory = False # Is the input a directory? If not, it is a single file.
         self.outputRootDirectory = outputDir
         self.referenceSequenceFileName     = referenceFile
         self.totalIterations      = numIters
         self.numberThreads         = numThreads
         
-        # Determine Input File Type
-        if (".fasta" == self.readFileName[-6:] or ".fa" == self.readFileName[-3:]):
-            self.readInputFormat = "fasta"
-        elif (".fastq"== self.readFileName[-6:] or ".fq" == self.readFileName[-3:]):
-            self.readInputFormat = "fastq"
-        else:
-            print('I expect a .fasta or .fastq format for read input. Please check your input.')
+        # Determine if input is a file, or a directory
+        if (os.path.isfile(self.readInput)):
+            #print ('Read input is a file that exists.')
+            pass
+            
+            # Determine Input File Type
+            if (".fasta" == self.readInput[-6:] or ".fa" == self.readInput[-3:]):
+                self.readInputFormat = "fasta"
+            elif (".fastq"== self.readInput[-6:] or ".fq" == self.readInput[-3:]):
+                self.readInputFormat = "fastq"
+            else:
+                print('I expect a .fasta or .fastq format for read input. Alternatively, specify a directory containing read inputs. Please check your input.')
+                raise Exception('Bad Read Input Format')
+                
+        elif (os.path.isdir(self.readInput)):
+            #print ('Read input is a directory that exists.')
+            self.inputDirectory = True
+            
+        else :
+            print('I expect a .fasta or .fastq format for read input. Alternatively, specify a directory containing read inputs. Please check your input.')
             raise Exception('Bad Read Input Format')
         
     # TODO Copy constructor
@@ -58,25 +74,72 @@ class AlleleWrangler():
         # Create a LogFile
         self.wranglerLog = createOutputFile(join(self.outputRootDirectory,'wrangling_summary.txt'))
         
-        self.wranglerLog.write('Reads:' + self.readFileName + '\n')
-        self.wranglerLog.write('Read Input Format:' + self.readInputFormat + '\n')
+        self.wranglerLog.write('Read Input:' + self.readInput + '\n')
         self.wranglerLog.write('Result directory:' + str(self.outputRootDirectory) + '\n')
         self.wranglerLog.write('Number Threads:' + str(self.numberThreads) + '\n')
         
-        # Was a consensus sequence provided?
-        if(self.referenceSequenceFileName is None):
-            print('No Reference was provided.  No problem, I will use the first read as a reference.')
-            self.createFirstGuessReferenceFromReads()            
+        if(self.inputDirectory):
+            self.wranglerLog.write('Read Input is a Directory:' + str(self.inputDirectory) + '\n')
+            for currentInputReadFile in os.listdir(self.readInput):
+                self.wranglerLog.write(currentInputReadFile + '\n')
+            # for each file name, print the file
+            self.wranglerLog.write('\t:' + str(self.inputDirectory) + '\n')
         else:
-            print('A Reference sequence was provided.')
+            self.wranglerLog.write('Read Input Format:' + self.readInputFormat + '\n')
+            
+
+      
+            #lklkjvsldkfj
+            #need to make new reference for each subgroup in the loop.
+        
+        if(self.inputDirectory):
+        # If it's a directory, then for each file
+            for currentInputReadFile in os.listdir(self.readInput):
+                self.wranglerLog.write(currentInputReadFile + '\n')
+                print('I will start a wrangler for these reads:' + str(currentInputReadFile))
+                #consensusSequenceFileName = self.wrangleRecurser(None, 1)            
+                #self.summarizeWrangling(consensusSequenceFileName)
+                
+                
+                
+                
+                
+            # Speficy output directory
+            
+            # Specify file format
+            # Do the normal stuff.
+        
+        else:
+            
+            #if(self.referenceSequenceFileName is None):
+            #    print('No Reference was provided.  No problem, I will use the first read as a reference.')
+            #    self.createFirstGuessReferenceFromReads()            
+            #else:
+                #print('A Reference sequence was provided.')
+            
+            # If read file input, do all the normal stuff
+            #self.currentIteration = 1
+            consensusSequenceFileName = self.wrangleRecurser(None, 1)            
+            self.summarizeWrangling(consensusSequenceFileName)
+
+        
+        
+        
+        
+        # Was a consensus sequence provided?
+        #if(self.referenceSequenceFileName is None):
+        #    print('No Reference was provided.  No problem, I will use the first read as a reference.')
+        #    self.createFirstGuessReferenceFromReads()            
+        #else:
+        #    print('A Reference sequence was provided.')
             #self.prepareReferenceInput() 
             #Copy the Reference to the input folder
             #consensusSequence = self.openConsensusSequence()
             
-        self.currentIteration = 1
-        consensusSequenceFileName = self.wrangleRecurser(self.referenceSequenceFileName)
+        #self.currentIteration = 1
+        #consensusSequenceFileName = self.wrangleRecurser(self.referenceSequenceFileName)
         
-        self.summarizeWrangling(consensusSequenceFileName)
+        #self.summarizeWrangling(consensusSequenceFileName)
         
         self.wranglerLog.close()
         
@@ -89,7 +152,9 @@ class AlleleWrangler():
         try:
             summaryDirectory = join(self.outputRootDirectory, 'FinalConsensus')
                         
-            self.alignReads(finalConsensusSequence,self.readFileName,summaryDirectory)
+            self.alignReads(finalConsensusSequence,self.readInput,summaryDirectory)
+            
+            copyfile(finalConsensusSequence, join(self.outputRootDirectory, 'ConsensusSequence.fasta'))
             
             # copy alignment reference and call it "final" 
             
@@ -97,45 +162,55 @@ class AlleleWrangler():
             print ('Exception performing the summarize alignment')                  
             raise 
     
-    # Input = location of Reference Sequence
+    # Input = location of Reference Sequence, iteration
     # Output = Location of the Consensus Sequence
-    def wrangleRecurser(self, currentReferenceSequence):
-        print('\n\nWRANGLING SOME ALLELES, ITERATION ' + str(self.currentIteration))
+    def wrangleRecurser(self, currentReferenceSequence, currentIteration):
+        print('\n\nWRANGLING SOME ALLELES, ITERATION ' + str(currentIteration))
         try:
+            
+            # Was a consensus sequence provided?
+            if(currentReferenceSequence is None):
+                print('No Reference was provided.  No problem, I will use the first read as a reference.')
+                currentReferenceSequence = self.createFirstGuessReferenceFromReads()            
+            else:
+                print('A Reference sequence was provided.')
+                #self.prepareReferenceInput() 
+                #Copy the Reference to the input folder
+                #consensusSequence = self.openConsensusSequence()            
                        
             alignmentSubdir = join(self.outputRootDirectory,'alignments')
             if not isdir(alignmentSubdir):
                 mkdir(alignmentSubdir)
-            currentIterationSubdirectory = join(alignmentSubdir,'iter_'+ str(self.currentIteration))
+            currentIterationSubdirectory = join(alignmentSubdir,'iter_'+ str(currentIteration))
             if not isdir(currentIterationSubdirectory):
                 mkdir(currentIterationSubdirectory)
             
             # Write a bit about this iteration to the Log.
 
-            self.wranglerLog.write('\nIteration # (' + str(self.currentIteration) + '/' + str(self.totalIterations) + ')\n')
+            self.wranglerLog.write('\nIteration # (' + str(currentIteration) + '/' + str(self.totalIterations) + ')\n')
             self.wranglerLog.write('Iteration Alignment Directory:' + currentIterationSubdirectory + '\n')
             self.wranglerLog.write('Reference Filename:' + str(currentReferenceSequence) + '\n')
             
     
             
                 
-            self.alignReads(currentReferenceSequence,self.readFileName,currentIterationSubdirectory)
+            self.alignReads(currentReferenceSequence,self.readInput,currentIterationSubdirectory)
             self.analyzeAlignment(currentIterationSubdirectory)
             
             # If we want more iterations, I should Recurse and try again.
-            if (int(self.totalIterations) > int(self.currentIteration)):
+            if (int(self.totalIterations) > int(currentIteration)):
                 # On the next iteration, we want to use the new consensus sequence 
                 # as the reference. 
-                print('I am on iteration (' + str(self.currentIteration) + '/' + self.totalIterations + ') I will continue...')
+                print('I am on iteration (' + str(currentIteration) + '/' + self.totalIterations + ') I will continue...')
                 newReferenceSequenceFileName = join(currentIterationSubdirectory, 'Consensus.fasta')
-                self.currentIteration += 1
+                #currentIteration += 1
                 
                 # Return the consensus from one layer deeper.
-                return self.wrangleRecurser(newReferenceSequenceFileName)
+                return self.wrangleRecurser(newReferenceSequenceFileName, currentIteration + 1)
                 
                 
             else:
-                print('That was the last iteration (' + str(self.currentIteration) + '/' + self.totalIterations + '), I am done now.')
+                print('That was the last iteration (' + str(currentIteration) + '/' + self.totalIterations + '), I am done now.')
                 
                 # Return the consensus
                 return join(currentIterationSubdirectory, 'Consensus.fasta')
@@ -215,9 +290,9 @@ class AlleleWrangler():
         alignmentRef = list(SeqIO.parse(alignmentReferenceFileName, 'fasta'))[0]
         
         # Count the reads in the input file
-        totalReadCount = len(list(SeqIO.parse(self.readFileName, self.readInputFormat)))
+        totalReadCount = len(list(SeqIO.parse(self.readInput, self.readInputFormat)))
         #self.readInputFormat
-        #self.readFileName
+        #self.readInput
                 
         # We generate a new consensus sequence from the alignment results.
         newConsensusSequence = ""
@@ -231,8 +306,9 @@ class AlleleWrangler():
         
         # A smaller log. I will provide human-readable descriptions of the
         # bases that were adjusted in the new consensus sequence.
-        # TODO: Provide surrounding sequence as well, maybe it's a repeat region.... 
-        adjustedBasesSummaryFile = createOutputFile(join(alignmentOutputDirectory,'AdjustedBases.txt')) 
+        # TODO: Provide surrounding sequence as well, maybe it's a repeat region....
+        # Acutally NAH, I want to just put it in the wrangler log. 
+        #adjustedBasesSummaryFile = createOutputFile(join(alignmentOutputDirectory,'AdjustedBases.txt')) 
         
         # Keep a running total of adjustments made to the reference.
         # If this total is 0, then theoretically the consensus matches the alignment reference, and we're done.
@@ -323,7 +399,7 @@ class AlleleWrangler():
             #TODO: Detect heterozygosity here
             # Do the base frequencies look "normal"?
             # High proportion of Inserts or Deletions?
-            # 
+            # Maybe I don't care, because I want to build a read-clusterer tool.
             
             
             # Add the next base to the new consensus sequence            
@@ -339,10 +415,12 @@ class AlleleWrangler():
                 referenceAdjustment='I'  
                 newConsensusSequence += referenceBase + mostFrequentBase         
                 
-                adjustedBasesSummaryFile.write(str(referencePosition) + ':Insertion' +
+                self.wranglerLog.write(str(referencePosition) + ':Insertion' +
                     '\n(' + str(inCount) + '/' + str(alignedCount) + ') = ' + str((100.0 * inCount) / alignedCount) + '% of aligned reads'
                     '\n(' + referenceBase + ' > ' + referenceBase + mostFrequentBase + ')' +
                     '\n')
+                
+                #TODO: I need to insert multiple bases, if that is waht the alignment suggests.
 
             elif (delCount >= mismatchCount):
                 # Reads show a deletion.
@@ -350,7 +428,7 @@ class AlleleWrangler():
                 totalSequenceAdjustments += 1
                 referenceAdjustment='D'
                 
-                adjustedBasesSummaryFile.write(str(referencePosition) + ':Deletion' +
+                self.wranglerLog.write(str(referencePosition) + ':Deletion' +
                     '\n(' + str(delCount) + '/' + str(alignedCount) + ') = ' + str((100.0 * delCount) / alignedCount) + '% of aligned reads'
                     '\n(' + referenceBase + ' > _)' +
                     '\n')
@@ -367,7 +445,7 @@ class AlleleWrangler():
                 totalSequenceAdjustments += 1     
                 referenceAdjustment='M'   
                 
-                adjustedBasesSummaryFile.write(str(referencePosition) + ':Mismatch' +
+                self.wranglerLog.write(str(referencePosition) + ':Mismatch' +
                     '\n(' + str(mostFrequentBaseCount) + '/' + str(alignedCount) + ') = ' + str((100.0 * mostFrequentBaseCount) / alignedCount) + '% of aligned reads'
                     '\n(' + referenceBase + ' > ' + mostFrequentBase + ')' +
                     '\n')
@@ -397,14 +475,14 @@ class AlleleWrangler():
            
         SeqIO.write([SeqRecord(Seq(newConsensusSequence,
             IUPAC.unambiguous_dna),
-            id="GeneratedConsensusSequence|Coverage=35|Iteration="+str(self.currentIteration), description="") ], consensusWriter, 'fasta')
+            id="GeneratedConsensusSequence|Coverage=GarbageInformation", description="") ], consensusWriter, 'fasta')
         consensusWriter.close()
             
         self.wranglerLog.write('Total Sequence Adjustments:' + str(totalSequenceAdjustments) + '\n')
             
         # Close Summary Files
         alignmentSummaryFile.close()
-        adjustedBasesSummaryFile.close()
+        #adjustedBasesSummaryFile.close()
         
         #return totalSequenceAdjustments
    
@@ -413,7 +491,7 @@ class AlleleWrangler():
         try:
 
             # Load Reads from File
-            parsedReads = list(SeqIO.parse(self.readFileName, self.readInputFormat))
+            parsedReads = list(SeqIO.parse(self.readInput, self.readInputFormat))
             firstRead = parsedReads[0]
             
             #print('First Read:' + str(firstRead))
@@ -423,11 +501,13 @@ class AlleleWrangler():
             if not isdir(referenceDirectory):
                 mkdir(referenceDirectory)
                 
-            self.referenceSequenceFileName = join(referenceDirectory, 'FirstGuessReference.fasta')
+            referenceFileName = join(referenceDirectory, 'FirstGuessReference.fasta')
             
-            firstGuessRefFileWriter = createOutputFile(self.referenceSequenceFileName)        
+            firstGuessRefFileWriter = createOutputFile(referenceFileName)        
             SeqIO.write([firstRead], firstGuessRefFileWriter, 'fasta')
             firstGuessRefFileWriter.close()
+            
+            return referenceFileName
        
         except Exception:
             print ('Exception encountered in createFirstGuessReferenceFromReads()') 
@@ -441,6 +521,6 @@ def createOutputFile(outputfileName):
     tempDir, tempFilename = split(outputfileName)
     if not isdir(tempDir):
         print('Making Directory:' + tempDir)
-        mkdir(tempDir)
+        makedirs(tempDir)
     resultsOutput = open(outputfileName, 'w')
     return resultsOutput

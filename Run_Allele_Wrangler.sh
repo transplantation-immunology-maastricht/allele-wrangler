@@ -22,9 +22,7 @@
 # You can fill that variable with whatever text you wish to appear there
 # Don't use special characters ("*", "/", "\", "$", "?", etc.)
 
-ReadInputFile="/home/eggs/Workspace/Github/allele-wrangler/data/EvenSmallerReads.fasta"
-#ReadInputFile="/home/eggs/Workspace/Github/allele-wrangler/data/ToyReads.fasta"
-#ReadInputFile="/home/eggs/Workspace/Data/SampleReads_extracts/SampleReads_BC01_TwoDir_reads.fasta"
+ReadInputFile="/home/minion/MinIONData/EfiAbstractProject2017/43785/Analysis/blast_results/SortedReads/EvenSmallerReads.fasta"
 ResultsOutputDirectory="/home/eggs/Workspace/wrangled_results_toy"
 NumberIterations="5"
 ThreadCount="4"
