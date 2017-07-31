@@ -69,6 +69,12 @@ def readArgs():
             elif opt in ('-v', '--version'):
                 print (SoftwareVersion)
                 return False
+            
+            # TODO Commandline args:
+            # param:MultipleSequenceAligner Readcount=3
+            # Tune it higher for better initial consensus. Maybe longer final consensus?
+            # param: Aligment sample readcount=75
+            # param: splitheterozygtes
 
             elif opt in ("-i", "--iterations"):
                 numberIterations = arg
@@ -112,8 +118,8 @@ if __name__=='__main__':
         if(readArgs()):
             print('Commandline arguments look fine.\nThe hour is at hand. Let us wrangle the Alleles.')
             
-            myAlleleWrangler = AlleleWrangler(readInput, outputResultDirectory, consensusFileName, numberIterations, numberThreads)
-            myAlleleWrangler.wrangle()
+            myAlleleWrangler = AlleleWrangler(inputReadFileName, outputResultDirectory, consensusFileName, numberIterations, numberThreads)
+            myAlleleWrangler.analyzeReads()
             
             print ('I am done wrangling alleles for now, have a nice day.')    
         else:
