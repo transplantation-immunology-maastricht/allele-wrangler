@@ -22,11 +22,24 @@
 # You can fill that variable with whatever text you wish to appear there
 # Don't use special characters ("*", "/", "\", "$", "?", etc.)
 
-ReadInputFile="/home/eggs/Workspace/Github/allele-wrangler/data/EvenSmallerReads.fasta"
+#ReadInputFile="/home/eggs/Workspace/Github/allele-wrangler/data/EvenSmallerReads.fasta"
 #ReadInputFile="/home/eggs/Workspace/Github/allele-wrangler/data/ToyReads.fasta"
+#ResultsOutputDirectory="/home/eggs/Workspace/wrangled_results_toy"
+
 #ReadInputFile="/home/eggs/Workspace/Data/SampleReads_extracts/SampleReads_BC01_TwoDir_reads.fasta"
-ResultsOutputDirectory="/home/eggs/Workspace/wrangled_results_toy"
-NumberIterations="5"
+
+
+#ReadInputFile="/home/eggs/Workspace/Data/HLA-B_07_FewReads.fastq"
+#ResultsOutputDirectory="/home/eggs/Workspace/Data/HLA-B_07_FewReads_Assembled"
+
+ReadInputFile="/home/eggs/Workspace/Data/43785/HLA-B_07_08.fastq"
+ResultsOutputDirectory="/home/eggs/Workspace/Data/HLA-B_07_08_Combined"
+
+
+
+
+
+NumberIterations="15"
 ThreadCount="4"
 
 source activate minionvironment
