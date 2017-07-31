@@ -90,7 +90,7 @@ class AlleleWrangler():
         if(self.referenceSequenceFileName is None):
             print('No Reference was provided.  No problem, I can generate my own reference.')
             self.createFirstGuessReferenceFromReads()            
->>>>>>> referencemethod
+
         else:
             
             #if(self.referenceSequenceFileName is None):
@@ -124,7 +124,7 @@ class AlleleWrangler():
         
         # TODO: splitHeterozygotes should be commandline parameter
         self.summarizeAnalysis(consensusSequenceFileName, True)
->>>>>>> referencemethod
+
         
         self.wranglerLog.close()
         
@@ -138,7 +138,7 @@ class AlleleWrangler():
             summaryDirectory = join(self.outputRootDirectory, 'FinalConsensus')
                         
             self.alignReads(finalConsensusSequence,self.readFileName,summaryDirectory, False)
->>>>>>> referencemethod
+
             
             if(splitHeterozygotes):
                 # Find heterozy
@@ -244,7 +244,7 @@ class AlleleWrangler():
     # Output = Location of the Consensus Sequence
     def analysisRecurser(self, currentReferenceSequence):
         print('\n\nAttempting a read alignment and consensus polish, Iteration ' + str(self.currentIteration))
->>>>>>> referencemethod
+
         try:
             
             # Was a consensus sequence provided?
