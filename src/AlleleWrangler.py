@@ -37,6 +37,7 @@ from AlignmentInfo import *
 
 from subprocess import Popen, PIPE, STDOUT
 
+from pysam import *
 
 class AlleleWrangler():   
     
@@ -119,10 +120,28 @@ class AlleleWrangler():
                 # Find heterozy
                 self.splitHeterozygousPositions()
                 
+                
+                # Write both consensus sequences to a file
+                # TODO: THis is only one consensus, because i haven't implemented heterozygous positions yet
+                finalConsensusFilename = join(self.outputRootDirectory, 'AssembledConsensus.fasta')
+                finalConsensusSequence = list(SeqIO.parse(finalConsensusSequence, 'fasta'))[0]
+                #finalConsensusSequence.id = 'Assembled_Consensus_Sequence'
+                sequenceWriter = createOutputFile(finalConsensusFilename)
+                SeqIO.write([finalConsensusSequence], sequenceWriter, 'fasta')
+                sequenceWriter.close()
+                
             
             else:
                 # write consensus to file. 
                 # copy alignment reference and call it "final" 
+                
+                finalConsensusFilename = join(self.outputRootDirectory, 'AssembledConsensus.fasta')
+                finalConsensusSequence = list(SeqIO.parse(finalConsensusSequence, 'fasta'))[0]
+                #finalConsensusSequence.id = 'Assembled_Consensus_Sequence'
+                sequenceWriter = createOutputFile(finalConsensusFilename)
+                SeqIO.write([finalConsensusSequence], sequenceWriter, 'fasta')
+                sequenceWriter.close()
+                
                 
                 pass
                         
@@ -139,53 +158,14 @@ class AlleleWrangler():
         # Find positions
         
         # Open the bam file
-        bamfile = pysam.AlignmentFile(join(alignmentOutputDirectory,'alignment.bam'), 'rb')  
+        #bamfile = pysam.AlignmentFile(join(self.outputRootDirectory,'alignment.bam'), 'rb')  
         
         # Iterate the reference sequence column by column.
-        pileupIterator = bamfile.pileup(alignmentRef.id)
+        #pileupIterator = bamfile.pileup(alignmentRef.id)
         # TODO: Check where this pileup iterator starts. Are there reads mapped before or after the reference begins/ends?
-        for pileupColumn in pileupIterator:
+        #for pileupColumn in pileupIterator:
+        #    pr
         
-        """:
-        #TODO: Detect heterozygosity here
-            # Do the base frequencies look "normal"?
-            # High proportion of Inserts or Deletions?
-            # 
-            
-            # TODO: Params?            
-            matchCutoff = .90
-            heterozygousCutoff = .30
-            
-            isHeterozygousBase = False
-            
-            if (1.0 * matchCount / alignedCount) > matchCutoff:
-                # Looks fine.
-                pass
-            elif (1.0 * mismatchCount / alignedCount) > heterozygousCutoff:
-                isHeterozygousBase = True
-            elif (1.0 * inCount / alignedCount) > heterozygousCutoff:
-                isHeterozygousBase = True
-            elif (1.0 * delCount / alignedCount) > heterozygousCutoff:
-                isHeterozygousBase = True
-            
-            if isHeterozygousBase:
-                heterozygousBasesSummaryFile.write(
-                    'Position:' + str(referencePosition)
-                    + '\nReferenceBase:' + str(referenceBase)
-                    + '\nAlignedCount:' + str(alignedCount)
-                    + '\nMatchCount:' + str(matchCount)
-                    + '\nMismatchCount:' + str(mismatchCount)
-                    + '\nInsertion Count:' + str(inCount) 
-                    + '\nDeletion Count:' + str(delCount)
-                    + '\nA Count:' + str(aCount)
-                    + '\nG Count:' + str(gCount)
-                    + '\nC Count:' + str(cCount)
-                    + '\nT Count:' + str(tCount)
-                    + '\n\n'
-                    
-                    
-                )
-        """
         # Iterate through reads
         # this read has an array of "polymorphisms" the lenght of our heterozyoug positions
         # #store a 1 for  polymorphic position 1, -1 for the other one.            
@@ -378,7 +358,7 @@ class AlleleWrangler():
         newConsensusSequence = ""
         
         # Open the bam file
-        bamfile = pysam.AlignmentFile(join(alignmentOutputDirectory,'alignment.bam'), 'rb')  
+        bamfile = AlignmentFile(join(alignmentOutputDirectory,'alignment.bam'), 'rb')  
         
         # Open alignment analysis text file
         alignmentSummaryFile = createOutputFile(join(alignmentOutputDirectory,'AlignmentSummary.csv')) 
@@ -425,7 +405,7 @@ class AlleleWrangler():
             currentAlignmentColumn.referencePosition = pileupColumn.reference_pos
             currentAlignmentColumn.referenceBase = alignmentRef[pileupColumn.reference_pos].upper()
             currentAlignmentColumn.alignedCount = pileupColumn.nsegments
-            currentAlignmentColumn.unalignedCount = totalReadCount - alignedCount
+            currentAlignmentColumn.unalignedCount = totalReadCount - currentAlignmentColumn.alignedCount
             
             # Iterate the Reads at this position           
             for pileupRead in pileupColumn.pileups:
@@ -560,10 +540,12 @@ class AlleleWrangler():
         currentConsensusSequenceFileName = join(alignmentOutputDirectory, 'Consensus.fasta')        
         consensusWriter = createOutputFile(currentConsensusSequenceFileName)          
            
+        
+           
         # TODO This header is nonsense
         SeqIO.write([SeqRecord(Seq(newConsensusSequence,
             IUPAC.unambiguous_dna),
-            id="GeneratedConsensusSequence|Coverage=GarbageInformation", description="") ], consensusWriter, 'fasta')
+            id="Consensus_Sequence", description="") ], consensusWriter, 'fasta')
         consensusWriter.close()
             
         self.wranglerLog.write('Total Sequence Adjustments:' + str(totalSequenceAdjustments) + '\n')
@@ -579,7 +561,7 @@ class AlleleWrangler():
    
     def createFirstGuessReferenceFromReads(self):   
         #TODO: I should make this a commandline parameter. More = MSA takes longer. Less = worse reference
-        msaReadCount = 3
+        msaReadCount = 4
         
         print ('I choose ' + str(msaReadCount) + ' random reads.'
             + '\nThese are aligned to form a rough initial consensus sequence. Here:'
