@@ -40,7 +40,7 @@ class AlignmentInfo():
     
     def __init__(self):
         self.sequence = ''
-        self.alignmentInfo = []
+        self.alignmentColumns = []
 
 
 
