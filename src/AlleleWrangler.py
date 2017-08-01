@@ -12,7 +12,6 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with Allele-Wrangler. If not, see <http://www.gnu.org/licenses/>.
-from matplotlib.sphinxext.tests.test_tinypages import HERE
 
 # Version 1.0 
 
@@ -33,6 +32,8 @@ from Bio.Align.Applications import ClustalOmegaCommandline
 from Bio.Sequencing.Applications import BwaIndexCommandline
 from Bio.Align import AlignInfo
 from Bio import AlignIO
+
+from AlignmentInfo import *
 
 from subprocess import Popen, PIPE, STDOUT
 
@@ -70,11 +71,8 @@ class AlleleWrangler():
         else :
             print('I expect a .fasta or .fastq format for read input. Alternatively, specify a directory containing read inputs. Please check your input.')
             raise Exception('Bad Read Input Format')
-        
-    # TODO Copy constructor
-    # Could come in handy for recursing...
-
-
+ 
+    # Start here.
     def analyzeReads(self):
         
         print ('Beginning analysis of reads.')
@@ -93,36 +91,13 @@ class AlleleWrangler():
 
         else:
             
-            #if(self.referenceSequenceFileName is None):
-            #    print('No Reference was provided.  No problem, I will use the first read as a reference.')
-            #    self.createFirstGuessReferenceFromReads()            
-            #else:
-                #print('A Reference sequence was provided.')
-            
-            # If read file input, do all the normal stuff
-            #self.currentIteration = 1
             consensusSequenceFileName = self.wrangleRecurser(None, 1)            
             self.summarizeWrangling(consensusSequenceFileName)
-
-        
-        
-        
-        
-        # Was a consensus sequence provided?
-        #if(self.referenceSequenceFileName is None):
-        #    print('No Reference was provided.  No problem, I will use the first read as a reference.')
-        #    self.createFirstGuessReferenceFromReads()            
-        #else:
-        #    print('A Reference sequence was provided.')
-            #self.prepareReferenceInput() 
-            #Copy the Reference to the input folder
-            #consensusSequence = self.openConsensusSequence()
-            
 
         self.currentIteration = 1
         consensusSequenceFileName = self.analysisRecurser(self.referenceSequenceFileName)
         
-        # TODO: splitHeterozygotes should be commandline parameter
+        # TODO: splitHeterozygotes should be commandline parameter, not just a True
         self.summarizeAnalysis(consensusSequenceFileName, True)
 
         
@@ -137,7 +112,7 @@ class AlleleWrangler():
         try:
             summaryDirectory = join(self.outputRootDirectory, 'FinalConsensus')
                         
-            self.alignReads(finalConsensusSequence,self.readFileName,summaryDirectory, False)
+            self.alignReads(finalConsensusSequence,self.readInput,summaryDirectory, False)
 
             
             if(splitHeterozygotes):
@@ -155,9 +130,6 @@ class AlleleWrangler():
             print ('Exception performing the summarize alignment')                  
             raise 
     
-
-    
-    
     def splitHeterozygousPositions(self):
         print('Splitting reads by heterozygous positions')
         # Heterozygous base list
@@ -167,12 +139,12 @@ class AlleleWrangler():
         # Find positions
         
         # Open the bam file
-        #bamfile = pysam.AlignmentFile(join(alignmentOutputDirectory,'alignment.bam'), 'rb')  
+        bamfile = pysam.AlignmentFile(join(alignmentOutputDirectory,'alignment.bam'), 'rb')  
         
         # Iterate the reference sequence column by column.
-        #pileupIterator = bamfile.pileup(alignmentRef.id)
+        pileupIterator = bamfile.pileup(alignmentRef.id)
         # TODO: Check where this pileup iterator starts. Are there reads mapped before or after the reference begins/ends?
-        #for pileupColumn in pileupIterator:
+        for pileupColumn in pileupIterator:
         
         """:
         #TODO: Detect heterozygosity here
@@ -242,6 +214,7 @@ class AlleleWrangler():
     
     # Input = location of Reference Sequence
     # Output = Location of the Consensus Sequence
+    
     def analysisRecurser(self, currentReferenceSequence):
         print('\n\nAttempting a read alignment and consensus polish, Iteration ' + str(self.currentIteration))
 
@@ -260,27 +233,27 @@ class AlleleWrangler():
             alignmentSubdir = join(self.outputRootDirectory,'alignments')
             if not isdir(alignmentSubdir):
                 mkdir(alignmentSubdir)
-            currentIterationSubdirectory = join(alignmentSubdir,'iter_'+ str(currentIteration))
+            currentIterationSubdirectory = join(alignmentSubdir,'iter_'+ str(self.currentIteration))
             if not isdir(currentIterationSubdirectory):
                 mkdir(currentIterationSubdirectory)
             
             # Write a bit about this iteration to the Log.
 
-            self.wranglerLog.write('\nIteration # (' + str(currentIteration) + '/' + str(self.totalIterations) + ')\n')
+            self.wranglerLog.write('\nIteration # (' + str(self.currentIteration) + '/' + str(self.totalIterations) + ')\n')
             self.wranglerLog.write('Iteration Alignment Directory:' + currentIterationSubdirectory + '\n')
             self.wranglerLog.write('Reference Filename:' + str(currentReferenceSequence) + '\n')
 
 
-            self.alignReads(currentReferenceSequence,self.readFileName,currentIterationSubdirectory, True)
-            self.analyzeAlignment(currentIterationSubdirectory)
+            self.alignReads(currentReferenceSequence,self.readInput,currentIterationSubdirectory, True)
+            self.currentAlignmentInfo = self.analyzeAlignment(currentIterationSubdirectory)
             
             # If we want more iterations, I should Recurse and try again.
-            if (int(self.totalIterations) > int(currentIteration)):
+            if (int(self.totalIterations) > int(self.currentIteration)):
                 # On the next iteration, we want to use the new consensus sequence 
                 # as the reference. 
-                print('I am on iteration (' + str(currentIteration) + '/' + self.totalIterations + ') I will continue...')
+                print('I am on iteration (' + str(self.currentIteration) + '/' + self.totalIterations + ') I will continue...')
                 newReferenceSequenceFileName = join(currentIterationSubdirectory, 'Consensus.fasta')
-                #currentIteration += 1
+                self.currentIteration += 1
                 
                 # Return the consensus from one layer deeper.
 
@@ -288,7 +261,7 @@ class AlleleWrangler():
                 
                 
             else:
-                print('That was the last iteration (' + str(currentIteration) + '/' + self.totalIterations + '), I am done now.')
+                print('That was the last iteration (' + str(self.currentIteration) + '/' + self.totalIterations + '), I am done now.')
                 
                 # Return the consensus
                 return join(currentIterationSubdirectory, 'Consensus.fasta')
@@ -302,7 +275,6 @@ class AlleleWrangler():
             print sys.exc_info()[1]
             print sys.exc_info()[2]        
             raise 
-        
         
     # Perform BW Alignment.  Align all reads against the Reference.
     def alignReads(self, referenceLocation, readFileLocation, alignmentOutputDirectory, useReadSubset):
@@ -389,7 +361,6 @@ class AlleleWrangler():
         except Exception:
             print ('Exception indexing alignment reference. Is bwa installed?')                  
             raise 
-  
 
     def analyzeAlignment(self, alignmentOutputDirectory):
         print ('\nStep 2.) Parse the alignment and create a new consensus sequence.')
@@ -422,6 +393,7 @@ class AlleleWrangler():
         # Todo: I should keep a more structured array of info for these alignments.
         # Store this info into an object
         #class columnStats():
+        alignmentInfo = AlignmentInfo()
         
         # Keep a running total of adjustments made to the reference.
         # If this total is 0, then theoretically the consensus matches the alignment reference, and we're done.
@@ -432,10 +404,11 @@ class AlleleWrangler():
         # TODO: Check where this pileup iterator starts. Are there reads mapped before or after the reference begins/ends?
         for pileupColumn in pileupIterator:
             
+            currentAlignmentColumn = AlignmentColumn()
             #columnResults = None
            # columnResults.name='ll'
             #
-            referencePosition = 0
+            """referencePosition = 0
             referenceBase = ''
             referenceAdjustment = '?'
             alignedCount = 0
@@ -447,24 +420,24 @@ class AlleleWrangler():
             aCount = 0
             gCount = 0
             cCount = 0
-            tCount = 0
+            tCount = 0"""
             
-            referencePosition = pileupColumn.reference_pos
-            referenceBase = alignmentRef[pileupColumn.reference_pos].upper()
-            alignedCount = pileupColumn.nsegments
-            unalignedCount = totalReadCount - alignedCount
+            currentAlignmentColumn.referencePosition = pileupColumn.reference_pos
+            currentAlignmentColumn.referenceBase = alignmentRef[pileupColumn.reference_pos].upper()
+            currentAlignmentColumn.alignedCount = pileupColumn.nsegments
+            currentAlignmentColumn.unalignedCount = totalReadCount - alignedCount
             
             # Iterate the Reads at this position           
             for pileupRead in pileupColumn.pileups:
                 
                 # If this read is a deletion
                 if(pileupRead.is_del == 1):
-                    delCount += 1
+                    currentAlignmentColumn.delCount += 1
                 # else if this read is an insertion
                 elif(pileupRead.indel > 0):
                     
                     #print ('INSERTION DETECTED, INDEL=' + str(pileupRead.indel))  
-                    inCount += 1                   
+                    currentAlignmentColumn.inCount += 1                   
                 # Else if it is a refskip (TODO What does this mean? no read aligned? Count these?)
                 elif(pileupRead.is_refskip):
                     print('This read is a refskip, i dont know what that means:' + pileupRead.alignment.query_name)
@@ -474,22 +447,22 @@ class AlleleWrangler():
                     currentBase = pileupRead.alignment.query_sequence[pileupRead.query_position].upper()                    
                     #print('Reference,Current:' + referenceBase + ',' + currentBase)
                     #print('Curr')
-                    if(currentBase == referenceBase):
-                        matchCount += 1
+                    if(currentBase == currentAlignmentColumn.referenceBase):
+                        currentAlignmentColumn.matchCount += 1
                     else:
-                        mismatchCount += 1
+                        currentAlignmentColumn.mismatchCount += 1
                    
                 # Count the nucleotide 
                 if (currentBase == 'A'):
-                    aCount += 1
+                    currentAlignmentColumn.aCount += 1
                 elif (currentBase == 'G'):
-                    gCount += 1
+                    currentAlignmentColumn.gCount += 1
                 elif (currentBase == 'C'):
-                    cCount += 1
+                    currentAlignmentColumn.cCount += 1
                 elif (currentBase == 'T'):
-                    tCount += 1
+                    currentAlignmentColumn.tCount += 1
                 else:
-                    print('Unknown Base found in Alignment at position ' + str(referencePosition) + ':' + currentBase)
+                    print('Unknown Base found in Alignment at position ' + str(currentAlignmentColumn.referencePosition) + ':' + currentBase)
                     raise Exception('Unknown Base in Alignment')
                 
                 
@@ -499,50 +472,50 @@ class AlleleWrangler():
             
             # Calculate highest frequency base
             # I hope this algorithm makes sense, probably there is a smarter way to do it.
-            if(aCount >= gCount and aCount >= cCount and aCount >= tCount):
+            if(currentAlignmentColumn.aCount >= currentAlignmentColumn.gCount and currentAlignmentColumn.aCount >= currentAlignmentColumn.cCount and currentAlignmentColumn.aCount >= currentAlignmentColumn.tCount):
                 mostFrequentBase = 'A'
-                mostFrequentBaseCount = aCount
-            elif(gCount >= cCount and gCount >= tCount):
+                mostFrequentBaseCount = currentAlignmentColumn.aCount
+            elif(currentAlignmentColumn.gCount >= currentAlignmentColumn.cCount and currentAlignmentColumn.gCount >= currentAlignmentColumn.tCount):
                 mostFrequentBase = 'G'
-                mostFrequentBaseCount = gCount
-            elif(cCount >= tCount):
+                mostFrequentBaseCount = currentAlignmentColumn.gCount
+            elif(currentAlignmentColumn.cCount >= currentAlignmentColumn.tCount):
                 mostFrequentBase = 'C'
-                mostFrequentBaseCount = cCount
+                mostFrequentBaseCount = currentAlignmentColumn.cCount
             else:
                 mostFrequentBase = 'T'
-                mostFrequentBaseCount = tCount
+                mostFrequentBaseCount = currentAlignmentColumn.tCount
 
 
             
             # Add the next base to the new consensus sequence            
-            if (matchCount >= mismatchCount and matchCount >= inCount and matchCount >= delCount):
+            if (currentAlignmentColumn.matchCount >= currentAlignmentColumn.mismatchCount and currentAlignmentColumn.matchCount >= currentAlignmentColumn.inCount and currentAlignmentColumn.matchCount >= currentAlignmentColumn.delCount):
                 # Aligned bases match the reference, add reference base to the consensus.
                 referenceAdjustment='-'
-                newConsensusSequence += referenceBase
+                newConsensusSequence += currentAlignmentColumn.referenceBase
                 
-            elif (inCount >= mismatchCount and inCount >= delCount):
+            elif (currentAlignmentColumn.inCount >= currentAlignmentColumn.mismatchCount and currentAlignmentColumn.inCount >= currentAlignmentColumn.delCount):
                 # Aligned bases show an insertion.
                 # Add the Reference Base and the Insertion Base to the consensus.  
                 totalSequenceAdjustments += 1 
                 referenceAdjustment='I'  
-                newConsensusSequence += referenceBase + mostFrequentBase         
+                newConsensusSequence += currentAlignmentColumn.referenceBase + mostFrequentBase         
                 
-                self.wranglerLog.write(str(referencePosition) + ':Insertion' +
-                    '\n(' + str(inCount) + '/' + str(alignedCount) + ') = ' + str((100.0 * inCount) / alignedCount) + '% of aligned reads'
-                    '\n(' + referenceBase + ' > ' + referenceBase + mostFrequentBase + ')' +
+                self.wranglerLog.write(str(currentAlignmentColumn.referencePosition) + ':Insertion' +
+                    '\n(' + str(currentAlignmentColumn.inCount) + '/' + str(currentAlignmentColumn.alignedCount) + ') = ' + str((100.0 * currentAlignmentColumn.inCount) / currentAlignmentColumn.alignedCount) + '% of aligned reads'
+                    '\n(' + currentAlignmentColumn.referenceBase + ' > ' + currentAlignmentColumn.referenceBase + mostFrequentBase + ')' +
                     '\n')
                 
                 #TODO: I need to insert multiple bases, if that is waht the alignment suggests.
 
-            elif (delCount >= mismatchCount):
+            elif (currentAlignmentColumn.delCount >= currentAlignmentColumn.mismatchCount):
                 # Reads show a deletion.
                 # Don't add anything to the consensus.
                 totalSequenceAdjustments += 1
                 referenceAdjustment='D'
                 
-                self.wranglerLog.write(str(referencePosition) + ':Deletion' +
-                    '\n(' + str(delCount) + '/' + str(alignedCount) + ') = ' + str((100.0 * delCount) / alignedCount) + '% of aligned reads'
-                    '\n(' + referenceBase + ' > _)' +
+                self.wranglerLog.write(str(currentAlignmentColumn.referencePosition) + ':Deletion' +
+                    '\n(' + str(currentAlignmentColumn.delCount) + '/' + str(currentAlignmentColumn.alignedCount) + ') = ' + str((100.0 * currentAlignmentColumn.delCount) / currentAlignmentColumn.alignedCount) + '% of aligned reads'
+                    '\n(' + currentAlignmentColumn.referenceBase + ' > _)' +
                     '\n')
                 
             else:
@@ -557,27 +530,29 @@ class AlleleWrangler():
                 totalSequenceAdjustments += 1     
                 referenceAdjustment='M'   
                 
-                self.wranglerLog.write(str(referencePosition) + ':Mismatch' +
-                    '\n(' + str(mostFrequentBaseCount) + '/' + str(alignedCount) + ') = ' + str((100.0 * mostFrequentBaseCount) / alignedCount) + '% of aligned reads'
-                    '\n(' + referenceBase + ' > ' + mostFrequentBase + ')' +
+                self.wranglerLog.write(str(currentAlignmentColumn.referencePosition) + ':Mismatch' +
+                    '\n(' + str(mostFrequentBaseCount) + '/' + str(currentAlignmentColumn.alignedCount) + ') = ' + str((100.0 * mostFrequentBaseCount) / currentAlignmentColumn.alignedCount) + '% of aligned reads'
+                    '\n(' + currentAlignmentColumn.referenceBase + ' > ' + mostFrequentBase + ')' +
                     '\n')
               
 
             # Write a line to the alignment Summary 
-            alignmentSummaryFile.write(str(referencePosition) + 
-                ',' + str(referenceBase) +
+            alignmentSummaryFile.write(str(currentAlignmentColumn.referencePosition) + 
+                ',' + str(currentAlignmentColumn.referenceBase) +
                 ',' + str(referenceAdjustment) + 
-                ',' + str(alignedCount) + 
-                ',' + str(unalignedCount) + 
-                ',' + str(matchCount) + 
-                ',' + str(mismatchCount) + 
-                ',' + str(inCount) + 
-                ',' + str(delCount) + 
-                ',' + str(aCount) + 
-                ',' + str(gCount) + 
-                ',' + str(cCount) + 
-                ',' + str(tCount) +
+                ',' + str(currentAlignmentColumn.alignedCount) + 
+                ',' + str(currentAlignmentColumn.unalignedCount) + 
+                ',' + str(currentAlignmentColumn.matchCount) + 
+                ',' + str(currentAlignmentColumn.mismatchCount) + 
+                ',' + str(currentAlignmentColumn.inCount) + 
+                ',' + str(currentAlignmentColumn.delCount) + 
+                ',' + str(currentAlignmentColumn.aCount) + 
+                ',' + str(currentAlignmentColumn.gCount) + 
+                ',' + str(currentAlignmentColumn.cCount) + 
+                ',' + str(currentAlignmentColumn.tCount) +
                 '\n')
+            
+            alignmentInfo.alignmentColumns.append(currentAlignmentColumn)
             
         print('\nTotal Sequence Adjustments:' + str(totalSequenceAdjustments) + ' (How many bases the consensus differs from the reference.)\n')    
         
@@ -597,6 +572,8 @@ class AlleleWrangler():
         alignmentSummaryFile.close()
         #adjustedBasesSummaryFile.close()
         
+        return alignmentInfo
+        
         
         #return totalSequenceAdjustments
    
@@ -611,7 +588,7 @@ class AlleleWrangler():
         try:            
             # Load Reads from File
 
-            parsedReads = list(SeqIO.parse(self.readFileName, self.readInputFormat))            
+            parsedReads = list(SeqIO.parse(self.readInput, self.readInputFormat))            
             referenceSequence = None
 
             
@@ -664,7 +641,7 @@ class AlleleWrangler():
 
             firstGuessRefFileWriter.close()
             
-            return referenceFileName
+            return self.referenceSequenceFileName
        
        
             print ('Done making initial consensus sequence.')
@@ -677,8 +654,6 @@ class AlleleWrangler():
             print sys.exc_info()[1]
             print sys.exc_info()[2] 
             raise    
-            
-
 
 # This method is a directory-safe way to open up a write file.
 def createOutputFile(outputfileName):

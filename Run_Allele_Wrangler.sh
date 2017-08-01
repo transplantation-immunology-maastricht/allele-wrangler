@@ -41,7 +41,7 @@ ReadInputFile="/home/eggs/Workspace/Data/43785/HLA-B_07_08.fastq"
 ResultsOutputDirectory="/home/eggs/Workspace/Data/HLA-B_07_08_Combined"
 
 
-NumberIterations="15"
+NumberIterations="5"
 ThreadCount="4"
 
 source activate minionvironment

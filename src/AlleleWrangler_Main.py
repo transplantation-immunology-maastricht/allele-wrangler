@@ -118,7 +118,7 @@ if __name__=='__main__':
         if(readArgs()):
             print('Commandline arguments look fine.\nThe hour is at hand. Let us wrangle the Alleles.')
             
-            myAlleleWrangler = AlleleWrangler(inputReadFileName, outputResultDirectory, consensusFileName, numberIterations, numberThreads)
+            myAlleleWrangler = AlleleWrangler(readInput, outputResultDirectory, consensusFileName, numberIterations, numberThreads)
             myAlleleWrangler.analyzeReads()
             
             print ('I am done wrangling alleles for now, have a nice day.')    
