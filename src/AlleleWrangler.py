@@ -84,22 +84,34 @@ class AlleleWrangler():
         self.wranglerLog.write('Result directory:' + str(self.outputRootDirectory) + '\n')
         self.wranglerLog.write('Number Threads:' + str(self.numberThreads) + '\n')
         
-
-        # Was a consensus sequence provided?
-        if(self.referenceSequenceFileName is None):
-            print('No Reference was provided.  No problem, I can generate my own reference.')
-            self.createFirstGuessReferenceFromReads()            
-
-        else:
-            
-            consensusSequenceFileName = self.wrangleRecurser(None, 1)            
-            self.summarizeWrangling(consensusSequenceFileName)
-
-        self.currentIteration = 1
-        consensusSequenceFileName = self.analysisRecurser(self.referenceSequenceFileName)
         
-        # TODO: splitHeterozygotes should be commandline parameter, not just a True
-        self.summarizeAnalysis(consensusSequenceFileName, True)
+        
+        readCount = len(list(SeqIO.parse(self.readInput, self.readInputFormat)))
+        
+        if (readCount > 5):
+    
+            # Was a consensus sequence provided?
+            if(self.referenceSequenceFileName is None):
+                print('No Reference was provided.  No problem, I can generate my own reference.')
+                self.createFirstGuessReferenceFromReads()            
+    
+            else:
+                
+                consensusSequenceFileName = self.wrangleRecurser(None, 1)            
+                self.summarizeWrangling(consensusSequenceFileName)
+    
+            self.currentIteration = 1
+            consensusSequenceFileName = self.analysisRecurser(self.referenceSequenceFileName)
+            
+            # TODO: splitHeterozygotes should be commandline parameter, not just a True
+            self.summarizeAnalysis(consensusSequenceFileName, True)
+        
+        else:
+            print ('Skipping this read file. Not enough reads to assemble:' + str(self.readInput))
+            self.wranglerLog.write('Skipping this read file. Not enough reads to assemble:' + str(self.readInput))
+        
+            
+            
 
         
         self.wranglerLog.close()
@@ -231,7 +243,7 @@ class AlleleWrangler():
             if (int(self.totalIterations) > int(self.currentIteration)):
                 # On the next iteration, we want to use the new consensus sequence 
                 # as the reference. 
-                print('I am on iteration (' + str(self.currentIteration) + '/' + self.totalIterations + ') I will continue...')
+                print('I am on iteration (' + str(self.currentIteration) + '/' + str(self.totalIterations) + ') I will continue...')
                 newReferenceSequenceFileName = join(currentIterationSubdirectory, 'Consensus.fasta')
                 self.currentIteration += 1
                 
@@ -241,7 +253,7 @@ class AlleleWrangler():
                 
                 
             else:
-                print('That was the last iteration (' + str(self.currentIteration) + '/' + self.totalIterations + '), I am done now.')
+                print('That was the last iteration (' + str(self.currentIteration) + '/' + str(self.totalIterations) + '), I am done now.')
                 
                 # Return the consensus
                 return join(currentIterationSubdirectory, 'Consensus.fasta')
@@ -287,7 +299,11 @@ class AlleleWrangler():
         try:
             if useReadSubset:
                 # load Reads
-                parsedReads = list(SeqIO.parse(readFileLocation, self.readInputFormat)) 
+                parsedReads = list(SeqIO.parse(readFileLocation, self.readInputFormat))
+                
+                # If there aren't enough reads for this
+                if (len(parsedReads) < alignmentReadSubsetCount):
+                    alignmentReadSubsetCount = len(parsedReads)
                 
                 # choose random subset
                 randomIndexes = range(0, len(parsedReads))
@@ -614,7 +630,13 @@ class AlleleWrangler():
             # Else
             else:
                 # Select the first read, use it as the reference. It's something.
-                referenceSequence = parsedReads[0]        
+                #referenceSequence = parsedReads[0]
+                # You know what? we should just give up. There aren't enough reads to assemble.
+                #raise Exception('Not enough reads to continue.')
+                referenceSequence = SeqRecord(Seq('' , IUPAC.IUPACUnambiguousDNA),
+                    id='Initial_Consensus',
+                    description='Initial_Consensus')
+                        
              
             #Write reference to file
             self.referenceSequenceFileName = join(referenceDirectory, 'FirstGuessReference.fasta')            
