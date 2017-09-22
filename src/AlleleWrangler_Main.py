@@ -41,12 +41,15 @@ def readArgs():
     global numberIterations
     global consensusFileName
     global numberThreads
+    global splitHeterozygotes
     
     readInput        = None
     outputResultDirectory    = None
     consensusFileName        = None
     numberIterations         = 1
     numberThreads            = 1
+    # TODO: splitHeterozygotes should be commandline parameter, not just a True
+    splitHeterozygotes      = True
 
     if(len(sys.argv) < 3):
         print ('I don\'t think you have enough arguments.\n')
@@ -118,7 +121,7 @@ if __name__=='__main__':
         if(readArgs()):
             print('Commandline arguments look fine.\nThe hour is at hand. Let us wrangle the Alleles.')
             
-            myAlleleWrangler = AlleleWrangler(readInput, outputResultDirectory, consensusFileName, numberIterations, numberThreads)
+            myAlleleWrangler = AlleleWrangler(readInput, outputResultDirectory, consensusFileName, numberIterations, numberThreads, splitHeterozygotes)
             myAlleleWrangler.analyzeReads()
             
             print ('I am done wrangling alleles for now, have a nice day.')    
