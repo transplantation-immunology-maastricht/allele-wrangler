@@ -12,6 +12,9 @@
 #
 # You should have received a copy of the GNU Lesser General Public License
 # along with Allele-Wrangler. If not, see <http://www.gnu.org/licenses/>.
+from Bio.triefind import match
+from numpy.core.setup_common import MismatchCAPIWarning
+from Bio.Emboss.Applications import FConsenseCommandline
 
 # Version 1.0 
 
@@ -39,9 +42,10 @@ from subprocess import Popen, PIPE, STDOUT
 
 from pysam import *
 
+
 class AlleleWrangler():   
     
-    def __init__(self, readsFile, outputDir, referenceFile, numIters, numThreads):
+    def __init__(self, readsFile, outputDir, referenceFile, numIters, numThreads, splitHeterozygotes):
          
         print ('Setting up the Allele Wrangler...')
         self.readInput          = readsFile
@@ -50,6 +54,7 @@ class AlleleWrangler():
         self.referenceSequenceFileName     = referenceFile
         self.totalIterations      = numIters
         self.numberThreads         = numThreads
+        self.splitHeterozygotes = splitHeterozygotes
         
         # Determine if input is a file, or a directory
         if (os.path.isfile(self.readInput)):
@@ -90,62 +95,56 @@ class AlleleWrangler():
         
         if (readCount > 5):
     
-            # Was a consensus sequence provided?
+            # Was a reference sequence provided?
             if(self.referenceSequenceFileName is None):
                 print('No Reference was provided.  No problem, I can generate my own reference.')
                 self.createFirstGuessReferenceFromReads()            
     
             else:
-                
-                consensusSequenceFileName = self.wrangleRecurser(None, 1)            
-                self.summarizeWrangling(consensusSequenceFileName)
+                print('I was provided this reference filename:' + self.referenceSequenceFileName)
+                pass
+                # TODO I just commented this out, i already know i have a reference sequence.
+                #consensusSequenceFileName = self.wrangleRecurser(None, 1)            
+                #self.summarizeWrangling(consensusSequenceFileName)
     
             self.currentIteration = 1
             consensusSequenceFileName = self.analysisRecurser(self.referenceSequenceFileName)
             
-            # TODO: splitHeterozygotes should be commandline parameter, not just a True
-            self.summarizeAnalysis(consensusSequenceFileName, True)
+            
+            self.summarizeAnalysis(consensusSequenceFileName, self.splitHeterozygotes)
         
         else:
             print ('Skipping this read file. Not enough reads to assemble:' + str(self.readInput))
             self.wranglerLog.write('Skipping this read file. Not enough reads to assemble:' + str(self.readInput))
         
-            
-            
 
         
         self.wranglerLog.close()
         
+
         
-        #TODO: After iteration, do A "FINAL" alignment with results.
-        #I can report heterozygous positions and all that in there.
      
     def summarizeAnalysis(self, finalConsensusSequence, splitHeterozygotes):  
+        # TODO: I shouldnt need to pass in the splitHeterozygotes, since it is a class variable.
         print('\n\nSummarizing Analysis Results.') 
         try:
-            summaryDirectory = join(self.outputRootDirectory, 'FinalConsensus')
-                        
-            self.alignReads(finalConsensusSequence,self.readInput,summaryDirectory, False)
+           
 
             
             if(splitHeterozygotes):
-                # Find heterozy
-                self.splitHeterozygousPositions()
+                # TODO: Im passing in a lot of self variables here. I should be able to remove those.
                 
+                self.heterozygousDirectory = join(self.outputRootDirectory, 'HeterozygousAlignment')                        
+                self.alignReads(finalConsensusSequence,self.readInput,self.heterozygousDirectory, False)
                 
-                # Write both consensus sequences to a file
-                # TODO: THis is only one consensus, because i haven't implemented heterozygous positions yet
-                finalConsensusFilename = join(self.outputRootDirectory, 'AssembledConsensus.fasta')
-                finalConsensusSequence = list(SeqIO.parse(finalConsensusSequence, 'fasta'))[0]
-                #finalConsensusSequence.id = 'Assembled_Consensus_Sequence'
-                sequenceWriter = createOutputFile(finalConsensusFilename)
-                SeqIO.write([finalConsensusSequence], sequenceWriter, 'fasta')
-                sequenceWriter.close()
-                
-            
+                # Find heterozygous positions
+                self.phaseHeterozygousReads()
+               
             else:
                 # write consensus to file. 
                 # copy alignment reference and call it "final" 
+                self.finalAlignmentDirectory = join(self.outputRootDirectory, 'FinalAlignment')                        
+                self.alignReads(finalConsensusSequence,self.readInput,self.finalAlignmentDirectory, False)
                 
                 finalConsensusFilename = join(self.outputRootDirectory, 'AssembledConsensus.fasta')
                 finalConsensusSequence = list(SeqIO.parse(finalConsensusSequence, 'fasta'))[0]
@@ -161,52 +160,206 @@ class AlleleWrangler():
             print ('Exception performing the summarize alignment')                  
             raise 
     
-    def splitHeterozygousPositions(self):
+    def phaseHeterozygousReads(self):
         print('Splitting reads by heterozygous positions')
-        # Heterozygous base list
-        heterozygousBasesSummaryFile = createOutputFile(join(self.outputRootDirectory,'HeterozygousBases.txt')) 
         
-        heterozygousBasesSummaryFile.close()
-        # Find positions
+        # Get a list of reads for later.
+        parsedReads = list(SeqIO.parse(self.readInput, self.readInputFormat))
         
-        # Open the bam file
-        #bamfile = pysam.AlignmentFile(join(self.outputRootDirectory,'alignment.bam'), 'rb')  
-        
-        # Iterate the reference sequence column by column.
-        #pileupIterator = bamfile.pileup(alignmentRef.id)
-        # TODO: Check where this pileup iterator starts. Are there reads mapped before or after the reference begins/ends?
-        #for pileupColumn in pileupIterator:
-        #    pr
-        
-        # Iterate through reads
-        # this read has an array of "polymorphisms" the lenght of our heterozyoug positions
-        # #store a 1 for  polymorphic position 1, -1 for the other one.            
-            # Iterate through positions
+        heterozygousConsensusDirectory = join(self.outputRootDirectory,'HeterozygousAlignment')
 
-                # assign 1, 0, -1 based on 
-                # match, notsure, mismatch/insert/del
-                
-        # iterate reads
-            # if there are no clusters
-                # this read starts a cluster
-            
-            # if there is only one cluster
-                # Am I kinda like that cluster?
-                    # add to cluster
-                # else
-                    # new cluster
-                    
-            # if there is 2 (or more?) clusters
-                #iterate clusters
-                    #Am I kinda like that cluster? and not liek others?
-                        # add to cluster
-                
+        # Open the bam file
+        print ('opening final alignment_bamfile')
+        bamfile = pysam.AlignmentFile(join(heterozygousConsensusDirectory,'alignment.bam'), 'rb')  
         
-    
-    
+        # Load up the Alignment Reference file, we'll need it.
+        alignmentReferenceFileName = join(heterozygousConsensusDirectory,'AlignmentReference.fasta')
+        alignmentRef = list(SeqIO.parse(alignmentReferenceFileName, 'fasta'))[0]
+     
+        # get list of AlignedReads
+        print ('Making a list of Aligned Reads.')
+        readIDs = []
+        for read in parsedReads:
+            if not read.id in readIDs:
+                readIDs.append(read.id)
+        readIDs.sort()
+
+        # Heterozygous base list
+        heterozygousBasesSummaryFile = createOutputFile(join(heterozygousConsensusDirectory,'HeterozygousBases.txt'))         
+        heterozygousBasesSummaryFile.write('List of Heterozygous Bases:')
+
+        # get list of Heterozygous Positions
+        # TODO: I suppose I don't need to align 100% of reads to determine heterozygosity.
+        # Maybe this would speed up if i use a smaller alignment, or stop the loop after X reads
+        print('Getting a list of Heterozygous Positions:')
+        heterozygousPositions = []
+        pileupIterator = bamfile.pileup(alignmentRef.id)
+        for pileupColumn in pileupIterator:
+            readCount = 0
+            matchCount = 0
+            mismatchCount = 0
+            
+            referenceBase = alignmentRef.seq[pileupColumn.pos].upper()
+            
+            # Iterate the Reads at this position           
+            for pileupRead in pileupColumn.pileups:
+                readCount += 1
+                # indels
+                if(pileupRead.is_del == 1 or pileupRead.indel > 0):
+                    mismatchCount += 1                
+                else:    
+                    currentBase = pileupRead.alignment.query_sequence[pileupRead.query_position].upper()                    
+
+                    if(currentBase == referenceBase):
+                        matchCount += 1
+                    else:
+                        mismatchCount += 1
+                   
+            matchProportion = (1.0 * matchCount / readCount)
+            #print ('Position ' + str(pileupColumn.pos) + ', Coverage ' + str(pileupColumn.n) + ', Match/Mismatch : ' + str(matchCount) + '/' + str(mismatchCount))
+            #print ('Match Percentage ' + str(matchProportion))
+            
+            # TODO: Should accepted match proprtion be a commandline parameter?
+            # if > 75% of bases match, this is not a heterzygous position
+            if(matchProportion > .60):
+                pass
+                #print ('Position ' + str(pileupColumn.pos) + ', Coverage ' + str(pileupColumn.n) + ', Match/Mismatch : ' + str(matchCount) + '/' + str(mismatchCount))
+                #print ('This position does not look heterozygous.')
+            # If coverage is very low, we should not use this position
+            elif ((1.0 * pileupColumn.n / readCount) < .25):
+                pass
+            else:
+                #print ('HETEROZYGOUS Position ' + str(pileupColumn.pos) + ', Coverage ' + str(pileupColumn.n) + ', Match/Mismatch : ' + str(matchCount) + '/' + str(mismatchCount))
+                heterozygousBasesSummaryFile.write (str(pileupColumn.pos) + ', Coverage ' + str(pileupColumn.n) + ', Match/Mismatch : ' + str(matchCount) + '/' + str(mismatchCount) + '\n')
+                heterozygousPositions.append(pileupColumn.pos)
+                
+        heterozygousBasesSummaryFile.close()
+            #print ('Pileup Column # ' + str(pileupIterator))
+
+            
+        # I'm making this distance array. In this array, a 0 represents a Match.  a 1 represents indels or substitutions.
+        # This way I can calculate "distance" in an arbitrary number of dimensions
+        # Distance is a euclidian way to represent how far away a read is from the consensus,
+        # based on the heterozygous positions.  Each heterozygous position is a "dimension" in this space
+        distanceArrays = {}
+        for readID in readIDs:
+            distanceArrays[readID] = list([0] * len(heterozygousPositions))
+
+        pileupIterator = bamfile.pileup(alignmentRef.id)
+        for pileupColumn in pileupIterator:
+            currentColumn = pileupColumn.pos
+            
+            # Only do this if the column number exists in our list of heterozygous positions
+            if currentColumn in heterozygousPositions:
+                
+                heterozygousPositionIndex = heterozygousPositions.index(currentColumn)
+                
+                referenceBase = alignmentRef.seq[currentColumn].upper()
+                for pileupRead in pileupColumn.pileups:
+                    readID = pileupRead.alignment.query_name
+                    
+                    #print('Pos:' + str(currentColumn) + ', Refbase:' + str(referenceBase) + ', Read:' + str(readID))
+                    
+                    if(pileupRead.is_del == 1):
+                        distanceArrays[readID][heterozygousPositionIndex] = 1
+                    elif(pileupRead.indel > 0):
+                        distanceArrays[readID][heterozygousPositionIndex] = 1    
+                    else:   
+                        currentBase = pileupRead.alignment.query_sequence[pileupRead.query_position].upper()  
+                        if(currentBase == referenceBase):
+                            #print('Assinging Match. Column=' + str(currentColumn) + ', CurrentBase:' + str(currentBase) + ', HeterozygousPosIndex=' + str(heterozygousPositionIndex))
+                            distanceArrays[readID][heterozygousPositionIndex] = 0
+                        else:
+                            distanceArrays[readID][heterozygousPositionIndex] = 1
+
+        readIDs1, readIDs2 = self.clusterReads(distanceArrays)
+        
+        # Write group reads to output files  
+        
+        strand1OutputFileLocation = join(join(self.outputRootDirectory, 'Strand1ClusteredReads'), 'Strand1Reads.fastq')
+        strand2OutputFileLocation = join(join(self.outputRootDirectory, 'Strand2ClusteredReads'), 'Strand2Reads.fastq')
+        
+        strand1OutputFile = createOutputFile(strand1OutputFileLocation)
+        strand2OutputFile = createOutputFile(strand2OutputFileLocation)
+        
+        # Loop parsed reads, sort by read cluster
+        for read in parsedReads:
+            
+            readFound = False
+            for readID in readIDs1:
+                if(readID in read.id):
+                    SeqIO.write([read], strand1OutputFile, 'fastq')
+                    readFound = True
+                    break
+                
+            # Don't enter this loop if we already found the read. Save a bit of time.
+            if not readFound:
+                for readID in readIDs2:
+                    if(readID in read.id):
+                        SeqIO.write([read], strand2OutputFile, 'fastq')
+                        break
+        
+        strand1OutputFile.close()
+        strand2OutputFile.close()
+ 
+        # Assemble those 2 output files
+        strand1Wrangler = AlleleWrangler(
+            strand1OutputFileLocation
+            , join(self.outputRootDirectory, 'Strand1Alignment')
+            , join(self.heterozygousDirectory, 'AlignmentReference.fasta')
+            , 6
+            , self.numberThreads
+            , False)
+        strand1Wrangler.analyzeReads()
+        
+        strand2Wrangler = AlleleWrangler(
+            strand2OutputFileLocation
+            , join(self.outputRootDirectory, 'Strand2Alignment')
+            , join(self.heterozygousDirectory, 'AlignmentReference.fasta')
+            , 6
+            , self.numberThreads
+            , False)
+        strand2Wrangler.analyzeReads()
+        
+        
+        # TODO: Copy the consensus sequences up a few directories?
+        
+        print ('Done Phasing Reads.')
+
+        
+    def clusterReads(self, dataInput):
+        # TODO Move these imports to the top, this is silly.
+        
+        import numpy as np
+        from sklearn.cluster import KMeans
+          
+        readIDs = dataInput.keys()
+        readDistanceArrays=np.asarray([dataInput[k] for k in readIDs if k in dataInput])
+        
+        # TODO: I can choose number of jobs/threads.
+        kmeansObject = KMeans(n_clusters=2 )
+        predictedLabels = kmeansObject.fit_predict(readDistanceArrays)
+        
+        print ('Done Clustering. Here are the predicted labels:\n' + str(predictedLabels))
+        
+        # Get read IDs from each cluster and populate arrays
+        strand1ReadIDs = []
+        strand2ReadIDs = []
+        
+        for labelIndex, label in enumerate(predictedLabels):
+            #print ('Read:' + str(readIDs[labelIndex]) + ' , Label: ' + str(label) + ' Data:\n' + str(readDistanceArrays[labelIndex]))
+            #Arbitrarily, label 0 = strand 1 and label 1 = strand 2
+            if(label == 0):
+                strand1ReadIDs.append(readIDs[labelIndex])
+            elif(label == 1):
+                strand2ReadIDs.append(readIDs[labelIndex])
+            else:
+                raise Exception('Unknown Cluster Label:' + str(label) + '. Perhaps you ended up with extra clusters.')
+
+        return strand1ReadIDs, strand2ReadIDs
+            
     # Input = location of Reference Sequence
-    # Output = Location of the Consensus Sequence
-    
+    # Output = Location of the Consensus Sequence    
     def analysisRecurser(self, currentReferenceSequence):
         print('\n\nAttempting a read alignment and consensus polish, Iteration ' + str(self.currentIteration))
 
@@ -295,7 +448,7 @@ class AlleleWrangler():
             raise
         
         # TODO: Make this a commandline parameter.  Lower = faster. Higher = more accurate consensus correction
-        alignmentReadSubsetCount = 200
+        alignmentReadSubsetCount = 150
         try:
             if useReadSubset:
                 # load Reads
